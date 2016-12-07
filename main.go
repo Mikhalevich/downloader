@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -20,8 +21,20 @@ type Chunk struct {
 	Bytes []byte
 }
 
-func downloadChunk(method, url string, startRange, endRange, index int, chunk chan Chunk) {
-	request, err := http.NewRequest(method, url, nil)
+type Task struct {
+	Method    string
+	ChunkSize int
+}
+
+func NewTask() *Task {
+	return &Task{
+		Method:    "GET",
+		ChunkSize: 1 * 1024 * 1024,
+	}
+}
+
+func (self Task) downloadChunk(url string, startRange, endRange, index int, chunk chan Chunk) {
+	request, err := http.NewRequest(self.Method, url, nil)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -48,8 +61,8 @@ func downloadChunk(method, url string, startRange, endRange, index int, chunk ch
 	chunk <- Chunk{index, bytes}
 }
 
-func simpleDownload(method, url string) []byte {
-	request, err := http.NewRequest(method, url, nil)
+func (self Task) simpleDownload(url string) []byte {
+	request, err := http.NewRequest(self.Method, url, nil)
 	if err != nil {
 		fmt.Println(err)
 		return []byte("")
@@ -71,25 +84,22 @@ func simpleDownload(method, url string) []byte {
 	return bytes
 }
 
-func Download(method, url, filePath string) {
+func (self Task) Download(url string, filePath string) error {
 	response, err := http.Head(url)
 	if err != nil {
-		fmt.Println(err)
-		return
+		return err
 	}
 	defer response.Body.Close()
 
 	if response.ContentLength < 0 {
-		fmt.Println("Invalid content-length")
-		return
+		return errors.New("Invalid content-length")
 	}
-	fmt.Println(response.ContentLength)
 
 	var results [][]byte
 
-	if int(response.ContentLength) > ByteCount && Async {
-		workers := int(response.ContentLength) / ByteCount
-		restChunk := int(response.ContentLength) % ByteCount
+	if int(response.ContentLength) > self.ChunkSize {
+		workers := int(response.ContentLength) / self.ChunkSize
+		restChunk := int(response.ContentLength) % self.ChunkSize
 
 		var wg sync.WaitGroup
 		chunk := make(chan Chunk)
@@ -110,14 +120,14 @@ func Download(method, url, filePath string) {
 			go func(rangeIndex int) {
 				defer wg.Done()
 
-				startRange := rangeIndex * ByteCount
-				endRange := (rangeIndex+1)*ByteCount - 1
+				startRange := rangeIndex * self.ChunkSize
+				endRange := (rangeIndex+1)*self.ChunkSize - 1
 
 				if rangeIndex == workers-1 {
 					endRange += restChunk
 				}
 
-				downloadChunk(method, url, startRange, endRange, rangeIndex, chunk)
+				self.downloadChunk(url, startRange, endRange, rangeIndex, chunk)
 			}(i)
 		}
 
@@ -126,33 +136,36 @@ func Download(method, url, filePath string) {
 		<-finish
 	} else {
 		results = make([][]byte, 1)
-		bytes := simpleDownload(method, url)
+		bytes := self.simpleDownload(url)
 		results[0] = bytes
 	}
 
 	file, err := os.Create(filePath)
 	if err != nil {
-		fmt.Println(err)
-		return
+		return err
 	}
 	defer file.Close()
 
 	for _, bytes := range results {
 		if len(bytes) <= 0 {
-			fmt.Println("Error")
-			return
+			errors.New("Error while downloading resource parts")
 		}
 
 		file.Write(bytes)
 	}
+
+	return nil
 }
 
 func main() {
 	startTime := time.Now()
 
+	task := NewTask()
 	//Download("GET", "http://localhost:8080/qt-opensource-linux-x64-5.5.1.run", "test")
-	//Download("GET", "http://localhost:8080/ChuckVsTux-full.jpg", "test")
-	Download("GET", "http://localhost:8080/go1.7.1.linux-amd64.tar.gz", "test")
+	task.Download("http://localhost:8080/ChuckVsTux-full.jpg", "test")
+	//Download("GET", "http://localhost:8080/go1.7.1.linux-amd64.tar.gz", "test")
+	//Download("GET", "https://cmake.org/files/v3.7/cmake-3.7.1.tar.gz", "test")
+	//Download("GET", "https://www.google.ru/url?sa=i&rct=j&q=&esrc=s&source=images&cd=&ved=0ahUKEwjr3Kfzj-LQAhVMWhoKHbuQAWoQjBwIBA&url=https%3A%2F%2Fupload.wikimedia.org%2Fwikipedia%2Fcommons%2Fd%2Fdd%2FExpeditionary_Fighting_Vehicle_test.jpg&bvm=bv.140496471,d.d24&psig=AFQjCNHIAILnpbsLhA9hB7RGR1mW4tghyg&ust=1481201542074876&cad=rjt", "test")
 
 	endTime := time.Now()
 	fmt.Println(endTime.Sub(startTime))
