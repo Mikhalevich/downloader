@@ -11,19 +11,14 @@ import (
 	"time"
 )
 
-const (
-	ByteCount = 1 * 1024 * 1024
-	Async     = true
-)
-
 type Chunk struct {
-	Index int
+	Index int64
 	Bytes []byte
 }
 
 type Task struct {
 	Method    string
-	ChunkSize int
+	ChunkSize int64
 }
 
 func NewTask() *Task {
@@ -33,14 +28,14 @@ func NewTask() *Task {
 	}
 }
 
-func (self Task) downloadChunk(url string, startRange, endRange, index int, chunk chan Chunk) {
+func (self Task) downloadChunk(url string, startRange, endRange, index int64, chunk chan Chunk) {
 	request, err := http.NewRequest(self.Method, url, nil)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	bytesRange := "bytes=" + strconv.Itoa(startRange) + "-" + strconv.Itoa(endRange)
+	bytesRange := "bytes=" + strconv.FormatInt(startRange, 10) + "-" + strconv.FormatInt(endRange, 10)
 	request.Header.Add("Range", bytesRange)
 
 	fmt.Println(index, bytesRange)
@@ -97,9 +92,9 @@ func (self Task) Download(url string, filePath string) error {
 
 	var results [][]byte
 
-	if int(response.ContentLength) > self.ChunkSize {
-		workers := int(response.ContentLength) / self.ChunkSize
-		restChunk := int(response.ContentLength) % self.ChunkSize
+	if response.ContentLength > self.ChunkSize {
+		workers := response.ContentLength / self.ChunkSize
+		restChunk := response.ContentLength % self.ChunkSize
 
 		var wg sync.WaitGroup
 		chunk := make(chan Chunk)
@@ -114,10 +109,11 @@ func (self Task) Download(url string, filePath string) error {
 			finish <- true
 		}()
 
-		for i := 0; i < workers; i++ {
+		var i int64
+		for i = 0; i < workers; i++ {
 			wg.Add(1)
 
-			go func(rangeIndex int) {
+			go func(rangeIndex int64) {
 				defer wg.Done()
 
 				startRange := rangeIndex * self.ChunkSize
