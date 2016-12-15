@@ -1,15 +1,13 @@
-package main
+package downloader
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 type Chunk struct {
@@ -121,7 +119,6 @@ func (self Task) Download(url string, filePath string) error {
 		wg.Wait()
 		close(chunk)
 		<-finish
-		fmt.Println("Done...")
 	} else {
 		results = make([][]byte, 1)
 		bytes, err := self.downloadWholeResource(url)
@@ -152,16 +149,4 @@ func (self Task) Download(url string, filePath string) error {
 	}
 
 	return nil
-}
-
-func main() {
-	startTime := time.Now()
-
-	task := NewTask()
-	task.Download("http://www.kenrockwell.com/nikon/d600/sample-images/600_0985.JPG", "")
-	//Download("GET", "https://cmake.org/files/v3.7/cmake-3.7.1.tar.gz", "test")
-	//Download("GET", "https://www.google.ru/url?sa=i&rct=j&q=&esrc=s&source=images&cd=&ved=0ahUKEwjr3Kfzj-LQAhVMWhoKHbuQAWoQjBwIBA&url=https%3A%2F%2Fupload.wikimedia.org%2Fwikipedia%2Fcommons%2Fd%2Fdd%2FExpeditionary_Fighting_Vehicle_test.jpg&bvm=bv.140496471,d.d24&psig=AFQjCNHIAILnpbsLhA9hB7RGR1mW4tghyg&ust=1481201542074876&cad=rjt", "test")
-
-	endTime := time.Now()
-	fmt.Println(endTime.Sub(startTime))
 }
