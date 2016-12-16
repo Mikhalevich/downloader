@@ -11,6 +11,10 @@ import (
 	"sync"
 )
 
+const (
+	DefaultChunkSize = 100 * 1024
+)
+
 type Chunk struct {
 	Index int64
 	Bytes []byte
@@ -20,13 +24,15 @@ type Task struct {
 	Method         string
 	ChunkSize      int64
 	DownloadFolder string
+	EnableRange    bool
 }
 
 func NewTask() *Task {
 	return &Task{
 		Method:         "GET",
-		ChunkSize:      100 * 1024,
+		ChunkSize:      DefaultChunkSize,
 		DownloadFolder: "",
+		EnableRange:    true,
 	}
 }
 
@@ -107,9 +113,18 @@ func storeResource(fileName, downloadFolder string, data [][]byte) error {
 }
 
 func (self Task) Download(url string, fileName string) error {
-	contentLength, err := resourceContentLength(url)
-	if err != nil {
-		return err
+	var contentLength int64 = 0
+	var err error
+
+	if self.EnableRange {
+		contentLength, err = resourceContentLength(url)
+		if err != nil {
+			return err
+		}
+	}
+
+	if self.ChunkSize <= 0 {
+		self.ChunkSize = DefaultChunkSize
 	}
 
 	var results [][]byte
