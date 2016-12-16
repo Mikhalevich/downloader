@@ -16,14 +16,16 @@ type Chunk struct {
 }
 
 type Task struct {
-	Method    string
-	ChunkSize int64
+	Method         string
+	ChunkSize      int64
+	DownloadFolder string
 }
 
 func NewTask() *Task {
 	return &Task{
-		Method:    "GET",
-		ChunkSize: 100 * 1024,
+		Method:         "GET",
+		ChunkSize:      100 * 1024,
+		DownloadFolder: "",
 	}
 }
 
@@ -73,17 +75,26 @@ func (self Task) downloadWholeResource(url string) ([]byte, error) {
 	return bytes, nil
 }
 
-func (self Task) Download(url string, filePath string) error {
+func resourceContentLength(url string) (int64, error) {
 	response, err := http.Head(url)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer response.Body.Close()
 
+	return response.ContentLength, nil
+}
+
+func (self Task) Download(url string, filePath string) error {
+	contentLength, err := resourceContentLength(url)
+	if err != nil {
+		return err
+	}
+
 	var results [][]byte
-	if response.ContentLength > self.ChunkSize {
-		workers := response.ContentLength / self.ChunkSize
-		restChunk := response.ContentLength % self.ChunkSize
+	if contentLength > self.ChunkSize {
+		workers := contentLength / self.ChunkSize
+		restChunk := contentLength % self.ChunkSize
 
 		var wg sync.WaitGroup
 		chunk := make(chan Chunk)
