@@ -3,7 +3,6 @@ package downloader
 import (
 	"fmt"
 	"testing"
-	"time"
 )
 
 var (
@@ -19,9 +18,6 @@ var (
 )
 
 func runTask(url string, enableRange bool, t *testing.T) {
-	fmt.Println(url)
-	startTime := time.Now()
-
 	task := NewTask()
 	task.DownloadFolder = "test_files"
 	task.EnableRange = enableRange
@@ -31,7 +27,8 @@ func runTask(url string, enableRange bool, t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Println(time.Now().Sub(startTime))
+	fmt.Println(task.Stats)
+	fmt.Println(task.Stats.ChunkTimes)
 }
 
 func download(urls []string, t *testing.T) {

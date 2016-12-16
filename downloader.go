@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -20,11 +22,26 @@ type Chunk struct {
 	Bytes []byte
 }
 
+type Statistics struct {
+	Url              string
+	ContentLength    int64
+	NumberOfChunks   int64
+	TotalTime        time.Duration
+	SlowestChunkTime time.Duration
+	ChunkTimes       []time.Duration
+}
+
+func (self Statistics) String() string {
+	return fmt.Sprintf("Url = %s; ContentLength = %d; Chunks = %d; TotalTime = %s; SlowestChunkTime = %s",
+		self.Url, self.ContentLength, self.NumberOfChunks, self.TotalTime, self.SlowestChunkTime)
+}
+
 type Task struct {
 	Method         string
 	ChunkSize      int64
 	DownloadFolder string
 	EnableRange    bool
+	Stats          Statistics
 }
 
 func NewTask() *Task {
@@ -33,10 +50,12 @@ func NewTask() *Task {
 		ChunkSize:      DefaultChunkSize,
 		DownloadFolder: "",
 		EnableRange:    true,
+		Stats:          Statistics{ChunkTimes: make([]time.Duration, 1)},
 	}
 }
 
-func (self Task) downloadChunk(url string, startRange, endRange, index int64, chunk chan Chunk) error {
+func (self *Task) downloadChunk(url string, startRange, endRange, index int64, chunk chan Chunk) error {
+	startTime := time.Now()
 	request, err := http.NewRequest(self.Method, url, nil)
 	if err != nil {
 		return err
@@ -55,6 +74,12 @@ func (self Task) downloadChunk(url string, startRange, endRange, index int64, ch
 	bytes, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return err
+	}
+
+	chunkExecutionTime := time.Now().Sub(startTime)
+	self.Stats.ChunkTimes = append(self.Stats.ChunkTimes, chunkExecutionTime)
+	if chunkExecutionTime > self.Stats.SlowestChunkTime {
+		self.Stats.SlowestChunkTime = chunkExecutionTime
 	}
 
 	chunk <- Chunk{index, bytes}
@@ -112,7 +137,8 @@ func storeResource(fileName, downloadFolder string, data [][]byte) error {
 	return nil
 }
 
-func (self Task) Download(url string, fileName string) error {
+func (self *Task) Download(url string, fileName string) error {
+	startTime := time.Now()
 	var contentLength int64 = 0
 	var err error
 
@@ -123,6 +149,9 @@ func (self Task) Download(url string, fileName string) error {
 		}
 	}
 
+	self.Stats.Url = url
+	self.Stats.ContentLength = contentLength
+
 	if self.ChunkSize <= 0 {
 		self.ChunkSize = DefaultChunkSize
 	}
@@ -131,6 +160,8 @@ func (self Task) Download(url string, fileName string) error {
 	if contentLength > self.ChunkSize {
 		workers := contentLength / self.ChunkSize
 		restChunk := contentLength % self.ChunkSize
+
+		self.Stats.NumberOfChunks = workers
 
 		var wg sync.WaitGroup
 		chunk := make(chan Chunk)
@@ -189,6 +220,8 @@ func (self Task) Download(url string, fileName string) error {
 	if err != nil {
 		return err
 	}
+
+	self.Stats.TotalTime = time.Now().Sub(startTime)
 
 	return nil
 }
