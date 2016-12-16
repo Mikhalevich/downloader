@@ -12,6 +12,7 @@ func download(urls []string, t *testing.T) {
 		startTime := time.Now()
 
 		task := NewTask()
+		task.DownloadFolder = "test_files"
 		err := task.Download(url, "")
 		if err != nil {
 			t.Fatal(err)
@@ -23,7 +24,7 @@ func download(urls []string, t *testing.T) {
 
 func TestSmallFiles(t *testing.T) {
 	urls := []string{"https://cdn-images-1.medium.com/max/1200/1*Uzd2n_pZTnQkCK0_MHE81w.jpeg",
-		"http://alierbey.com/wp-content/uploads/2016/10/golang.sh-600x600.pngm",
+		"http://alierbey.com/wp-content/uploads/2016/10/golang.sh-600x600.png",
 		"http://i1-news.softpedia-static.com/images/news2/Go-1-Is-the-First-Stable-Version-of-Google-s-New-Programming-Language-2.png",
 	}
 

@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -85,7 +86,27 @@ func resourceContentLength(url string) (int64, error) {
 	return response.ContentLength, nil
 }
 
-func (self Task) Download(url string, filePath string) error {
+func storeResource(fileName, downloadFolder string, data [][]byte) error {
+	if downloadFolder != "" {
+		if err := os.MkdirAll(downloadFolder, os.ModePerm); err != nil {
+			return err
+		}
+	}
+
+	file, err := os.Create(filepath.Join(downloadFolder, fileName))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	for _, bytes := range data {
+		file.Write(bytes)
+	}
+
+	return nil
+}
+
+func (self Task) Download(url string, fileName string) error {
 	contentLength, err := resourceContentLength(url)
 	if err != nil {
 		return err
@@ -145,18 +166,13 @@ func (self Task) Download(url string, filePath string) error {
 		}
 	}
 
-	if filePath == "" {
-		filePath = url[strings.LastIndex(url, "/")+1:]
+	if fileName == "" {
+		fileName = url[strings.LastIndex(url, "/")+1:]
 	}
 
-	file, err := os.Create(filePath)
+	err = storeResource(fileName, self.DownloadFolder, results)
 	if err != nil {
 		return err
-	}
-	defer file.Close()
-
-	for _, bytes := range results {
-		file.Write(bytes)
 	}
 
 	return nil
