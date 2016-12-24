@@ -25,6 +25,7 @@ type Chunk struct {
 type Statistics struct {
 	Url              string
 	ContentLength    int64
+	AcceptRanges     bool
 	NumberOfChunks   int64
 	TotalTime        time.Duration
 	SlowestChunkTime time.Duration
@@ -32,8 +33,8 @@ type Statistics struct {
 }
 
 func (self Statistics) String() string {
-	return fmt.Sprintf("Url = %s; ContentLength = %d; Chunks = %d; TotalTime = %s; SlowestChunkTime = %s",
-		self.Url, self.ContentLength, self.NumberOfChunks, self.TotalTime, self.SlowestChunkTime)
+	return fmt.Sprintf("Url = %s; ContentLength = %d; AcceptRanges = %t; Chunks = %d; TotalTime = %s; SlowestChunkTime = %s",
+		self.Url, self.ContentLength, self.AcceptRanges, self.NumberOfChunks, self.TotalTime, self.SlowestChunkTime)
 }
 
 type Task struct {
@@ -107,14 +108,15 @@ func (self Task) downloadWholeResource(url string) ([]byte, error) {
 	return bytes, nil
 }
 
-func resourceContentLength(url string) (int64, error) {
+func resourceInfo(url string) (int64, bool, error) {
 	response, err := http.Head(url)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	defer response.Body.Close()
 
-	return response.ContentLength, nil
+	_, acceptRanges := response.Header["Accept-Ranges"]
+	return response.ContentLength, acceptRanges, nil
 }
 
 func storeResource(fileName, downloadFolder string, data [][]byte) error {
@@ -140,10 +142,11 @@ func storeResource(fileName, downloadFolder string, data [][]byte) error {
 func (self *Task) Download(url string, fileName string) error {
 	startTime := time.Now()
 	var contentLength int64 = 0
+	var acceptRanges bool = false
 	var err error
 
 	if self.EnableRange {
-		contentLength, err = resourceContentLength(url)
+		contentLength, acceptRanges, err = resourceInfo(url)
 		if err != nil {
 			return err
 		}
@@ -151,13 +154,14 @@ func (self *Task) Download(url string, fileName string) error {
 
 	self.Stats.Url = url
 	self.Stats.ContentLength = contentLength
+	self.Stats.AcceptRanges = acceptRanges
 
 	if self.ChunkSize <= 0 {
 		self.ChunkSize = DefaultChunkSize
 	}
 
 	var results [][]byte
-	if contentLength > self.ChunkSize {
+	if acceptRanges && contentLength > self.ChunkSize {
 		workers := contentLength / self.ChunkSize
 		restChunk := contentLength % self.ChunkSize
 
