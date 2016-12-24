@@ -28,7 +28,7 @@ func runTask(url string, enableRange bool, t *testing.T) {
 	}
 
 	fmt.Println(task.Stats)
-	fmt.Println(task.Stats.ChunkTimes)
+	//fmt.Println(task.Stats.ChunkTimes)
 }
 
 func download(urls []string, t *testing.T) {
