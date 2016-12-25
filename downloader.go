@@ -184,8 +184,11 @@ func (self *Task) Download(url string, fileName string) error {
 
 		var wg sync.WaitGroup
 		chunk := make(chan Chunk)
+		downloadError := make(chan error)
 		finish := make(chan bool)
+		errorFinish := make(chan bool)
 		results = make([][]byte, workers)
+		errorResults := make([]error, 0)
 
 		go func() {
 			for c := range chunk {
@@ -193,6 +196,14 @@ func (self *Task) Download(url string, fileName string) error {
 			}
 
 			finish <- true
+		}()
+
+		go func() {
+			for c := range downloadError {
+				errorResults = append(errorResults, c)
+			}
+
+			errorFinish <- true
 		}()
 
 		var i int64
@@ -209,13 +220,22 @@ func (self *Task) Download(url string, fileName string) error {
 					endRange += restChunk
 				}
 
-				self.downloadChunk(url, startRange, endRange, rangeIndex, chunk)
+				err := self.downloadChunk(url, startRange, endRange, rangeIndex, chunk)
+				if err != nil {
+					downloadError <- err
+				}
 			}(i)
 		}
 
 		wg.Wait()
 		close(chunk)
+		close(downloadError)
 		<-finish
+		<-errorFinish
+
+		if len(errorResults) > 0 {
+			return errorResults[0]
+		}
 	} else {
 		results = make([][]byte, 1)
 		bytes, err := self.downloadWholeResource(url)
