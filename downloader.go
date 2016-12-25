@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	DefaultChunkSize = 100 * 1024
+	DefaultChunkSize  = 100 * 1024
+	DefaultMaxWorkers = 20
 )
 
 type Chunk struct {
@@ -27,14 +28,15 @@ type Statistics struct {
 	ContentLength    int64
 	AcceptRanges     bool
 	NumberOfChunks   int64
+	ChunkSize        int64
 	TotalTime        time.Duration
 	SlowestChunkTime time.Duration
 	ChunkTimes       []time.Duration
 }
 
 func (self Statistics) String() string {
-	return fmt.Sprintf("Url = %s; ContentLength = %d; AcceptRanges = %t; Chunks = %d; TotalTime = %s; SlowestChunkTime = %s",
-		self.Url, self.ContentLength, self.AcceptRanges, self.NumberOfChunks, self.TotalTime, self.SlowestChunkTime)
+	return fmt.Sprintf("Url = %s; ContentLength = %d; AcceptRanges = %t; Chunks = %d; ChunkSize = %d; TotalTime = %s; SlowestChunkTime = %s",
+		self.Url, self.ContentLength, self.AcceptRanges, self.NumberOfChunks, self.ChunkSize, self.TotalTime, self.SlowestChunkTime)
 }
 
 type Task struct {
@@ -42,6 +44,7 @@ type Task struct {
 	ChunkSize      int64
 	DownloadFolder string
 	EnableRange    bool
+	MaxWorkers     int64
 	Stats          Statistics
 }
 
@@ -51,6 +54,7 @@ func NewTask() *Task {
 		ChunkSize:      DefaultChunkSize,
 		DownloadFolder: "",
 		EnableRange:    true,
+		MaxWorkers:     DefaultMaxWorkers,
 		Stats:          Statistics{ChunkTimes: make([]time.Duration, 1)},
 	}
 }
@@ -139,6 +143,16 @@ func storeResource(fileName, downloadFolder string, data [][]byte) error {
 	return nil
 }
 
+func calculateWorkers(contentLength, chunkSize, maxWorkers int64) (int64, int64) {
+	workers := contentLength / chunkSize
+	if workers > maxWorkers {
+		chunkSize = contentLength / maxWorkers
+		workers = maxWorkers
+	}
+
+	return workers, chunkSize
+}
+
 func (self *Task) Download(url string, fileName string) error {
 	startTime := time.Now()
 	var contentLength int64 = 0
@@ -162,10 +176,11 @@ func (self *Task) Download(url string, fileName string) error {
 
 	var results [][]byte
 	if acceptRanges && contentLength > self.ChunkSize {
-		workers := contentLength / self.ChunkSize
-		restChunk := contentLength % self.ChunkSize
+		workers, chunkSize := calculateWorkers(contentLength, self.ChunkSize, self.MaxWorkers)
+		restChunk := contentLength % chunkSize
 
 		self.Stats.NumberOfChunks = workers
+		self.Stats.ChunkSize = chunkSize
 
 		var wg sync.WaitGroup
 		chunk := make(chan Chunk)
@@ -187,8 +202,8 @@ func (self *Task) Download(url string, fileName string) error {
 			go func(rangeIndex int64) {
 				defer wg.Done()
 
-				startRange := rangeIndex * self.ChunkSize
-				endRange := (rangeIndex+1)*self.ChunkSize - 1
+				startRange := rangeIndex * chunkSize
+				endRange := (rangeIndex+1)*chunkSize - 1
 
 				if rangeIndex == workers-1 {
 					endRange += restChunk
