@@ -174,7 +174,7 @@ func (self *Task) Download(url string, fileName string) error {
 		self.ChunkSize = DefaultChunkSize
 	}
 
-	var results [][]byte
+	var dataResults [][]byte
 	if acceptRanges && contentLength > self.ChunkSize {
 		workers, chunkSize := calculateWorkers(contentLength, self.ChunkSize, self.MaxWorkers)
 		restChunk := contentLength % chunkSize
@@ -183,19 +183,19 @@ func (self *Task) Download(url string, fileName string) error {
 		self.Stats.ChunkSize = chunkSize
 
 		var wg sync.WaitGroup
-		chunk := make(chan Chunk)
+		dataChunk := make(chan Chunk)
 		downloadError := make(chan error)
-		finish := make(chan bool)
+		dataFinish := make(chan bool)
 		errorFinish := make(chan bool)
-		results = make([][]byte, workers)
+		dataResults = make([][]byte, workers)
 		errorResults := make([]error, 0)
 
 		go func() {
-			for c := range chunk {
-				results[c.Index] = c.Bytes
+			for c := range dataChunk {
+				dataResults[c.Index] = c.Bytes
 			}
 
-			finish <- true
+			dataFinish <- true
 		}()
 
 		go func() {
@@ -220,7 +220,7 @@ func (self *Task) Download(url string, fileName string) error {
 					endRange += restChunk
 				}
 
-				err := self.downloadChunk(url, startRange, endRange, rangeIndex, chunk)
+				err := self.downloadChunk(url, startRange, endRange, rangeIndex, dataChunk)
 				if err != nil {
 					downloadError <- err
 				}
@@ -228,24 +228,24 @@ func (self *Task) Download(url string, fileName string) error {
 		}
 
 		wg.Wait()
-		close(chunk)
+		close(dataChunk)
 		close(downloadError)
-		<-finish
+		<-dataFinish
 		<-errorFinish
 
 		if len(errorResults) > 0 {
 			return errorResults[0]
 		}
 	} else {
-		results = make([][]byte, 1)
+		dataResults = make([][]byte, 1)
 		bytes, err := self.downloadWholeResource(url)
 		if err != nil {
 			return err
 		}
-		results[0] = bytes
+		dataResults[0] = bytes
 	}
 
-	for _, bytes := range results {
+	for _, bytes := range dataResults {
 		if len(bytes) <= 0 {
 			return errors.New("Error while downloading resource parts")
 		}
@@ -255,7 +255,7 @@ func (self *Task) Download(url string, fileName string) error {
 		fileName = url[strings.LastIndex(url, "/")+1:]
 	}
 
-	err = storeResource(fileName, self.DownloadFolder, results)
+	err = storeResource(fileName, self.DownloadFolder, dataResults)
 	if err != nil {
 		return err
 	}
