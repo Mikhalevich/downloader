@@ -150,6 +150,86 @@ func calculateWorkers(contentLength, chunkSize, maxWorkers int64) (int64, int64)
 	return workers, chunkSize
 }
 
+func (self *Task) downloadChunks(url string, contentLength int64) ([][]byte, error) {
+	workers, chunkSize := calculateWorkers(contentLength, self.ChunkSize, self.MaxWorkers)
+	restChunk := contentLength % chunkSize
+
+	self.Stats.NumberOfChunks = workers
+	self.Stats.ChunkSize = chunkSize
+
+	var wg sync.WaitGroup
+	dataChunk := make(chan Chunk)
+	downloadError := make(chan error)
+	dataFinish := make(chan bool)
+	errorFinish := make(chan bool)
+	dataResults := make([][]byte, workers)
+	errorResults := make([]error, 0)
+
+	go func() {
+		for c := range dataChunk {
+			dataResults[c.Index] = c.Bytes
+			self.Stats.ChunkTimes = append(self.Stats.ChunkTimes, c.ExecTime)
+			if c.ExecTime > self.Stats.SlowestChunkTime {
+				self.Stats.SlowestChunkTime = c.ExecTime
+			}
+		}
+
+		dataFinish <- true
+	}()
+
+	go func() {
+		for c := range downloadError {
+			errorResults = append(errorResults, c)
+		}
+
+		errorFinish <- true
+	}()
+
+	var i int64
+	for i = 0; i < workers; i++ {
+		wg.Add(1)
+
+		go func(rangeIndex int64) {
+			defer wg.Done()
+
+			startRange := rangeIndex * chunkSize
+			endRange := (rangeIndex+1)*chunkSize - 1
+
+			if rangeIndex == workers-1 {
+				endRange += restChunk
+			}
+
+			err := self.downloadChunk(url, startRange, endRange, rangeIndex, dataChunk)
+			if err != nil {
+				downloadError <- err
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(dataChunk)
+	close(downloadError)
+	<-dataFinish
+	<-errorFinish
+
+	if len(errorResults) > 0 {
+		return dataResults, errorResults[0]
+	}
+
+	return dataResults, nil
+}
+
+func (self *Task) downloadSingle(url string) ([][]byte, error) {
+	dataResults := make([][]byte, 1)
+	bytes, err := self.downloadWholeResource(url)
+	if err != nil {
+		return dataResults, err
+	}
+	dataResults[0] = bytes
+
+	return dataResults, nil
+}
+
 func (self *Task) Download(url string, fileName string) error {
 	startTime := time.Now()
 	var contentLength int64 = 0
@@ -173,77 +253,13 @@ func (self *Task) Download(url string, fileName string) error {
 
 	var dataResults [][]byte
 	if acceptRanges && contentLength > self.ChunkSize {
-		workers, chunkSize := calculateWorkers(contentLength, self.ChunkSize, self.MaxWorkers)
-		restChunk := contentLength % chunkSize
-
-		self.Stats.NumberOfChunks = workers
-		self.Stats.ChunkSize = chunkSize
-
-		var wg sync.WaitGroup
-		dataChunk := make(chan Chunk)
-		downloadError := make(chan error)
-		dataFinish := make(chan bool)
-		errorFinish := make(chan bool)
-		dataResults = make([][]byte, workers)
-		errorResults := make([]error, 0)
-
-		go func() {
-			for c := range dataChunk {
-				dataResults[c.Index] = c.Bytes
-				self.Stats.ChunkTimes = append(self.Stats.ChunkTimes, c.ExecTime)
-				if c.ExecTime > self.Stats.SlowestChunkTime {
-					self.Stats.SlowestChunkTime = c.ExecTime
-				}
-			}
-
-			dataFinish <- true
-		}()
-
-		go func() {
-			for c := range downloadError {
-				errorResults = append(errorResults, c)
-			}
-
-			errorFinish <- true
-		}()
-
-		var i int64
-		for i = 0; i < workers; i++ {
-			wg.Add(1)
-
-			go func(rangeIndex int64) {
-				defer wg.Done()
-
-				startRange := rangeIndex * chunkSize
-				endRange := (rangeIndex+1)*chunkSize - 1
-
-				if rangeIndex == workers-1 {
-					endRange += restChunk
-				}
-
-				err := self.downloadChunk(url, startRange, endRange, rangeIndex, dataChunk)
-				if err != nil {
-					downloadError <- err
-				}
-			}(i)
-		}
-
-		wg.Wait()
-		close(dataChunk)
-		close(downloadError)
-		<-dataFinish
-		<-errorFinish
-
-		if len(errorResults) > 0 {
-			return errorResults[0]
-		}
+		dataResults, err = self.downloadChunks(url, contentLength)
 	} else {
-		dataResults = make([][]byte, 1)
-		bytes, err := self.downloadWholeResource(url)
-		if err != nil {
-			return err
-		}
-		dataResults[0] = bytes
+		dataResults, err = self.downloadSingle(url)
+	}
+
+	if err != nil {
+		return err
 	}
 
 	for _, bytes := range dataResults {
