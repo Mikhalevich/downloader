@@ -153,6 +153,10 @@ func calculateWorkers(contentLength, chunkSize, maxWorkers int64) (int64, int64)
 	return workers, chunkSize
 }
 
+func chunkFolderPath(downloadFolder, fileName string) string {
+	return filepath.Join(downloadFolder, fileName+".download")
+}
+
 func (self *Task) downloadChunks(url string, contentLength int64) error {
 	workers, chunkSize := calculateWorkers(contentLength, self.ChunkSize, self.MaxWorkers)
 	restChunk := contentLength % chunkSize
@@ -250,7 +254,7 @@ func (self *Task) Download(url string, fileName string) error {
 		}
 
 		if self.UseFilesystem {
-			if err := os.MkdirAll(filepath.Join(self.DownloadFolder, fileName+".download"), os.ModePerm); err != nil {
+			if err := os.MkdirAll(chunkFolderPath(self.DownloadFolder, fileName), os.ModePerm); err != nil {
 				return err
 			}
 		}
@@ -286,7 +290,7 @@ func (self *Task) Download(url string, fileName string) error {
 	}
 
 	if self.UseFilesystem {
-		err := os.RemoveAll(filepath.Join(self.DownloadFolder, fileName+".download"))
+		err := os.RemoveAll(chunkFolderPath(self.DownloadFolder, fileName))
 		if err != nil {
 			return err
 		}
