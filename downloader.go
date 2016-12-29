@@ -19,8 +19,9 @@ const (
 )
 
 type Chunk struct {
-	Index int64
-	Bytes []byte
+	Index    int64
+	Bytes    []byte
+	ExecTime time.Duration
 }
 
 type Statistics struct {
@@ -82,12 +83,8 @@ func (self *Task) downloadChunk(url string, startRange, endRange, index int64, c
 	}
 
 	chunkExecutionTime := time.Now().Sub(startTime)
-	self.Stats.ChunkTimes = append(self.Stats.ChunkTimes, chunkExecutionTime)
-	if chunkExecutionTime > self.Stats.SlowestChunkTime {
-		self.Stats.SlowestChunkTime = chunkExecutionTime
-	}
 
-	chunk <- Chunk{index, bytes}
+	chunk <- Chunk{index, bytes, chunkExecutionTime}
 	return nil
 }
 
@@ -193,6 +190,10 @@ func (self *Task) Download(url string, fileName string) error {
 		go func() {
 			for c := range dataChunk {
 				dataResults[c.Index] = c.Bytes
+				self.Stats.ChunkTimes = append(self.Stats.ChunkTimes, c.ExecTime)
+				if c.ExecTime > self.Stats.SlowestChunkTime {
+					self.Stats.SlowestChunkTime = c.ExecTime
+				}
 			}
 
 			dataFinish <- true
