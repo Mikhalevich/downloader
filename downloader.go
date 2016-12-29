@@ -48,6 +48,7 @@ type Task struct {
 	MaxWorkers     int64
 	UseFilesystem  bool
 	Stats          Statistics
+	dataResults    [][]byte
 }
 
 func NewTask() *Task {
@@ -152,7 +153,7 @@ func calculateWorkers(contentLength, chunkSize, maxWorkers int64) (int64, int64)
 	return workers, chunkSize
 }
 
-func (self *Task) downloadChunks(url string, contentLength int64) ([][]byte, error) {
+func (self *Task) downloadChunks(url string, contentLength int64) error {
 	workers, chunkSize := calculateWorkers(contentLength, self.ChunkSize, self.MaxWorkers)
 	restChunk := contentLength % chunkSize
 
@@ -164,12 +165,12 @@ func (self *Task) downloadChunks(url string, contentLength int64) ([][]byte, err
 	downloadError := make(chan error)
 	dataFinish := make(chan bool)
 	errorFinish := make(chan bool)
-	dataResults := make([][]byte, workers)
+	self.dataResults = make([][]byte, workers)
 	errorResults := make([]error, 0)
 
 	go func() {
 		for c := range dataChunk {
-			dataResults[c.Index] = c.Bytes
+			self.dataResults[c.Index] = c.Bytes
 			self.Stats.ChunkTimes = append(self.Stats.ChunkTimes, c.ExecTime)
 			if c.ExecTime > self.Stats.SlowestChunkTime {
 				self.Stats.SlowestChunkTime = c.ExecTime
@@ -215,21 +216,21 @@ func (self *Task) downloadChunks(url string, contentLength int64) ([][]byte, err
 	<-errorFinish
 
 	if len(errorResults) > 0 {
-		return dataResults, errorResults[0]
+		return errorResults[0]
 	}
 
-	return dataResults, nil
+	return nil
 }
 
-func (self *Task) downloadSingle(url string) ([][]byte, error) {
-	dataResults := make([][]byte, 1)
+func (self *Task) downloadSingle(url string) error {
+	self.dataResults = make([][]byte, 1)
 	bytes, err := self.downloadWholeResource(url)
 	if err != nil {
-		return dataResults, err
+		return err
 	}
-	dataResults[0] = bytes
+	self.dataResults[0] = bytes
 
-	return dataResults, nil
+	return nil
 }
 
 func (self *Task) Download(url string, fileName string) error {
@@ -263,24 +264,23 @@ func (self *Task) Download(url string, fileName string) error {
 		self.ChunkSize = DefaultChunkSize
 	}
 
-	var dataResults [][]byte
 	if acceptRanges && contentLength > self.ChunkSize {
-		dataResults, err = self.downloadChunks(url, contentLength)
+		err = self.downloadChunks(url, contentLength)
 	} else {
-		dataResults, err = self.downloadSingle(url)
+		err = self.downloadSingle(url)
 	}
 
 	if err != nil {
 		return err
 	}
 
-	for _, bytes := range dataResults {
+	for _, bytes := range self.dataResults {
 		if len(bytes) <= 0 {
 			return errors.New("Error while downloading resource parts")
 		}
 	}
 
-	err = storeResource(fileName, self.DownloadFolder, dataResults)
+	err = storeResource(fileName, self.DownloadFolder, self.dataResults)
 	if err != nil {
 		return err
 	}
