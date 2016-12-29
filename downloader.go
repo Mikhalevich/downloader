@@ -46,6 +46,7 @@ type Task struct {
 	DownloadFolder string
 	EnableRange    bool
 	MaxWorkers     int64
+	UseFilesystem  bool
 	Stats          Statistics
 }
 
@@ -56,6 +57,7 @@ func NewTask() *Task {
 		DownloadFolder: "",
 		EnableRange:    true,
 		MaxWorkers:     DefaultMaxWorkers,
+		UseFilesystem:  true,
 		Stats:          Statistics{ChunkTimes: make([]time.Duration, 1)},
 	}
 }
@@ -236,10 +238,20 @@ func (self *Task) Download(url string, fileName string) error {
 	var acceptRanges bool = false
 	var err error
 
+	if fileName == "" {
+		fileName = url[strings.LastIndex(url, "/")+1:]
+	}
+
 	if self.EnableRange {
 		contentLength, acceptRanges, err = resourceInfo(url)
 		if err != nil {
 			return err
+		}
+
+		if self.UseFilesystem {
+			if err := os.MkdirAll(filepath.Join(self.DownloadFolder, fileName+".download"), os.ModePerm); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -268,13 +280,16 @@ func (self *Task) Download(url string, fileName string) error {
 		}
 	}
 
-	if fileName == "" {
-		fileName = url[strings.LastIndex(url, "/")+1:]
-	}
-
 	err = storeResource(fileName, self.DownloadFolder, dataResults)
 	if err != nil {
 		return err
+	}
+
+	if self.UseFilesystem {
+		err := os.RemoveAll(filepath.Join(self.DownloadFolder, fileName+".download"))
+		if err != nil {
+			return err
+		}
 	}
 
 	self.Stats.TotalTime = time.Now().Sub(startTime)
