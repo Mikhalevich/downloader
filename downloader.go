@@ -63,7 +63,7 @@ func NewTask() *Task {
 	}
 }
 
-func (self *Task) downloadChunk(url string, startRange, endRange, index int64, chunk chan Chunk) error {
+func (self *Task) downloadChunk(url string, startRange, endRange, index int64, fileName string, chunk chan Chunk) error {
 	startTime := time.Now()
 	request, err := http.NewRequest(self.Method, url, nil)
 	if err != nil {
@@ -86,6 +86,17 @@ func (self *Task) downloadChunk(url string, startRange, endRange, index int64, c
 	}
 
 	chunkExecutionTime := time.Now().Sub(startTime)
+
+	if self.UseFilesystem {
+		chunkFileName := self.chunkFilePath(fileName) + "." + strconv.FormatInt(index, 10)
+		file, err := os.Create(chunkFileName)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		file.Write(bytes)
+		bytes = []byte("")
+	}
 
 	chunk <- Chunk{index, bytes, chunkExecutionTime}
 	return nil
@@ -123,21 +134,43 @@ func resourceInfo(url string) (int64, bool, error) {
 	return response.ContentLength, acceptRanges, nil
 }
 
-func storeResource(fileName, downloadFolder string, data [][]byte) error {
-	if downloadFolder != "" {
-		if err := os.MkdirAll(downloadFolder, os.ModePerm); err != nil {
+func (self Task) chunkFolderPath(fileName string) string {
+	return filepath.Join(self.DownloadFolder, fileName+".download")
+}
+
+func (self Task) chunkFilePath(fileName string) string {
+	return filepath.Join(self.chunkFolderPath(fileName), fileName)
+}
+
+func (self Task) storeResource(fileName string) error {
+	if self.DownloadFolder != "" {
+		if err := os.MkdirAll(self.DownloadFolder, os.ModePerm); err != nil {
 			return err
 		}
 	}
 
-	file, err := os.Create(filepath.Join(downloadFolder, fileName))
+	file, err := os.Create(filepath.Join(self.DownloadFolder, fileName))
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	for _, bytes := range data {
-		file.Write(bytes)
+	for index, bytes := range self.dataResults {
+		if self.UseFilesystem {
+			chunkFile, err := os.Open(self.chunkFilePath(fileName) + "." + strconv.Itoa(index))
+			if err != nil {
+				return err
+			}
+
+			chunkFileBytes, err := ioutil.ReadAll(chunkFile)
+			if err != nil {
+				return err
+			}
+
+			file.Write(chunkFileBytes)
+		} else {
+			file.Write(bytes)
+		}
 	}
 
 	return nil
@@ -153,11 +186,7 @@ func calculateWorkers(contentLength, chunkSize, maxWorkers int64) (int64, int64)
 	return workers, chunkSize
 }
 
-func chunkFolderPath(downloadFolder, fileName string) string {
-	return filepath.Join(downloadFolder, fileName+".download")
-}
-
-func (self *Task) downloadChunks(url string, contentLength int64) error {
+func (self *Task) downloadChunks(url string, contentLength int64, fileName string) error {
 	workers, chunkSize := calculateWorkers(contentLength, self.ChunkSize, self.MaxWorkers)
 	restChunk := contentLength % chunkSize
 
@@ -206,7 +235,7 @@ func (self *Task) downloadChunks(url string, contentLength int64) error {
 				endRange += restChunk
 			}
 
-			err := self.downloadChunk(url, startRange, endRange, rangeIndex, dataChunk)
+			err := self.downloadChunk(url, startRange, endRange, rangeIndex, fileName, dataChunk)
 			if err != nil {
 				downloadError <- err
 			}
@@ -254,7 +283,7 @@ func (self *Task) Download(url string, fileName string) error {
 		}
 
 		if self.UseFilesystem {
-			if err := os.MkdirAll(chunkFolderPath(self.DownloadFolder, fileName), os.ModePerm); err != nil {
+			if err := os.MkdirAll(self.chunkFolderPath(fileName), os.ModePerm); err != nil {
 				return err
 			}
 		}
@@ -269,7 +298,7 @@ func (self *Task) Download(url string, fileName string) error {
 	}
 
 	if acceptRanges && contentLength > self.ChunkSize {
-		err = self.downloadChunks(url, contentLength)
+		err = self.downloadChunks(url, contentLength, fileName)
 	} else {
 		err = self.downloadSingle(url)
 	}
@@ -278,19 +307,21 @@ func (self *Task) Download(url string, fileName string) error {
 		return err
 	}
 
-	for _, bytes := range self.dataResults {
-		if len(bytes) <= 0 {
-			return errors.New("Error while downloading resource parts")
+	if !self.UseFilesystem {
+		for _, bytes := range self.dataResults {
+			if len(bytes) <= 0 {
+				return errors.New("Error while downloading resource parts")
+			}
 		}
 	}
 
-	err = storeResource(fileName, self.DownloadFolder, self.dataResults)
+	err = self.storeResource(fileName)
 	if err != nil {
 		return err
 	}
 
 	if self.UseFilesystem {
-		err := os.RemoveAll(chunkFolderPath(self.DownloadFolder, fileName))
+		err := os.RemoveAll(self.chunkFolderPath(fileName))
 		if err != nil {
 			return err
 		}
