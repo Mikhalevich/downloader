@@ -286,6 +286,7 @@ func (self *Task) Download(url string, fileName string) error {
 			if err := os.MkdirAll(self.chunkFolderPath(fileName), os.ModePerm); err != nil {
 				return err
 			}
+			defer os.RemoveAll(self.chunkFolderPath(fileName))
 		}
 	}
 
@@ -318,13 +319,6 @@ func (self *Task) Download(url string, fileName string) error {
 	err = self.storeResource(fileName)
 	if err != nil {
 		return err
-	}
-
-	if self.UseFilesystem {
-		err := os.RemoveAll(self.chunkFolderPath(fileName))
-		if err != nil {
-			return err
-		}
 	}
 
 	self.Stats.TotalTime = time.Now().Sub(startTime)
