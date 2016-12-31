@@ -123,17 +123,6 @@ func (self Task) downloadWholeResource(url string) ([]byte, error) {
 	return bytes, nil
 }
 
-func resourceInfo(url string) (int64, bool, error) {
-	response, err := http.Head(url)
-	if err != nil {
-		return 0, false, err
-	}
-	defer response.Body.Close()
-
-	_, acceptRanges := response.Header["Accept-Ranges"]
-	return response.ContentLength, acceptRanges, nil
-}
-
 func (self Task) chunkFolderPath(fileName string) string {
 	return filepath.Join(self.DownloadFolder, fileName+".download")
 }
@@ -174,16 +163,6 @@ func (self Task) storeResource(fileName string) error {
 	}
 
 	return nil
-}
-
-func calculateWorkers(contentLength, chunkSize, maxWorkers int64) (int64, int64) {
-	workers := contentLength / chunkSize
-	if workers > maxWorkers {
-		chunkSize = contentLength / maxWorkers
-		workers = maxWorkers
-	}
-
-	return workers, chunkSize
 }
 
 func (self *Task) downloadChunks(url string, contentLength int64, fileName string) error {
