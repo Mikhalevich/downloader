@@ -11,7 +11,14 @@ func resourceInfo(url string) (int64, bool, error) {
 	}
 	defer response.Body.Close()
 
-	_, acceptRanges := response.Header["Accept-Ranges"]
+	acceptRangesValue, acceptRanges := response.Header["Accept-Ranges"]
+	if acceptRanges {
+		for _, value := range acceptRangesValue {
+			if value == "none" {
+				acceptRanges = false
+			}
+		}
+	}
 	return response.ContentLength, acceptRanges, nil
 }
 
