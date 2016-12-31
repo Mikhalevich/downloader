@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -79,6 +78,17 @@ func (self *Task) downloadChunk(url string, startRange, endRange, index int64, f
 		return err
 	}
 	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusPartialContent {
+		// download whole resource
+		if index == 0 {
+			self.UseFilesystem = false
+			self.Stats.NumberOfChunks = 1
+			self.Stats.AcceptRanges = false
+		} else {
+			return nil
+		}
+	}
 
 	bytes, err := ioutil.ReadAll(response.Body)
 	if err != nil {
@@ -158,10 +168,9 @@ func (self Task) storeResource(fileName string, useChunksDownload bool) error {
 
 			file.Write(chunkFileBytes)
 		} else {
-			if len(bytes) <= 0 {
-				return errors.New("Error while downloading resource parts")
+			if len(bytes) > 0 {
+				file.Write(bytes)
 			}
-			file.Write(bytes)
 		}
 	}
 
