@@ -131,7 +131,7 @@ func (self Task) chunkFilePath(fileName string) string {
 	return filepath.Join(self.chunkFolderPath(fileName), fileName)
 }
 
-func (self Task) storeResource(fileName string) error {
+func (self Task) storeResource(fileName string, useChunksDownload bool) error {
 	if self.DownloadFolder != "" {
 		if err := os.MkdirAll(self.DownloadFolder, os.ModePerm); err != nil {
 			return err
@@ -145,7 +145,7 @@ func (self Task) storeResource(fileName string) error {
 	defer file.Close()
 
 	for index, bytes := range self.dataResults {
-		if self.UseFilesystem {
+		if self.UseFilesystem && useChunksDownload {
 			chunkFile, err := os.Open(self.chunkFilePath(fileName) + "." + strconv.Itoa(index))
 			if err != nil {
 				return err
@@ -158,6 +158,9 @@ func (self Task) storeResource(fileName string) error {
 
 			file.Write(chunkFileBytes)
 		} else {
+			if len(bytes) <= 0 {
+				return errors.New("Error while downloading resource parts")
+			}
 			file.Write(bytes)
 		}
 	}
@@ -270,12 +273,15 @@ func (self *Task) Download(url string, fileName string) error {
 		self.ChunkSize = DefaultChunkSize
 	}
 
-	if acceptRanges && contentLength > self.ChunkSize {
+	var useChunksDownload bool = acceptRanges && contentLength > self.ChunkSize
+
+	if useChunksDownload {
 		if self.UseFilesystem {
-			if err := os.MkdirAll(self.chunkFolderPath(fileName), os.ModePerm); err != nil {
+			chunkFolderPath := self.chunkFolderPath(fileName)
+			if err := os.MkdirAll(chunkFolderPath, os.ModePerm); err != nil {
 				return err
 			}
-			defer os.RemoveAll(self.chunkFolderPath(fileName))
+			defer os.RemoveAll(chunkFolderPath)
 		}
 
 		err = self.downloadChunks(url, contentLength, fileName)
@@ -287,15 +293,7 @@ func (self *Task) Download(url string, fileName string) error {
 		return err
 	}
 
-	if !self.UseFilesystem {
-		for _, bytes := range self.dataResults {
-			if len(bytes) <= 0 {
-				return errors.New("Error while downloading resource parts")
-			}
-		}
-	}
-
-	err = self.storeResource(fileName)
+	err = self.storeResource(fileName, useChunksDownload)
 	if err != nil {
 		return err
 	}
