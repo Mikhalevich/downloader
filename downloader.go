@@ -260,13 +260,6 @@ func (self *Task) Download(url string, fileName string) error {
 		if err != nil {
 			return err
 		}
-
-		if self.UseFilesystem {
-			if err := os.MkdirAll(self.chunkFolderPath(fileName), os.ModePerm); err != nil {
-				return err
-			}
-			defer os.RemoveAll(self.chunkFolderPath(fileName))
-		}
 	}
 
 	self.Stats.Url = url
@@ -278,6 +271,13 @@ func (self *Task) Download(url string, fileName string) error {
 	}
 
 	if acceptRanges && contentLength > self.ChunkSize {
+		if self.UseFilesystem {
+			if err := os.MkdirAll(self.chunkFolderPath(fileName), os.ModePerm); err != nil {
+				return err
+			}
+			defer os.RemoveAll(self.chunkFolderPath(fileName))
+		}
+
 		err = self.downloadChunks(url, contentLength, fileName)
 	} else {
 		err = self.downloadSingle(url)
