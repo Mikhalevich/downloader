@@ -39,7 +39,7 @@ func (self Statistics) String() string {
 		self.Url, self.ContentLength, self.AcceptRanges, self.NumberOfChunks, self.ChunkSize, self.TotalTime, self.SlowestChunkTime)
 }
 
-type Task struct {
+type Resource struct {
 	Method         string
 	ChunkSize      int64
 	DownloadFolder string
@@ -50,8 +50,8 @@ type Task struct {
 	dataResults    [][]byte
 }
 
-func NewTask() *Task {
-	return &Task{
+func NewResource() *Resource {
+	return &Resource{
 		Method:         "GET",
 		ChunkSize:      DefaultChunkSize,
 		DownloadFolder: "",
@@ -62,7 +62,7 @@ func NewTask() *Task {
 	}
 }
 
-func (self *Task) downloadChunk(url string, startRange, endRange, index int64, fileName string, chunk chan Chunk) error {
+func (self *Resource) downloadChunk(url string, startRange, endRange, index int64, fileName string, chunk chan Chunk) error {
 	startTime := time.Now()
 	request, err := http.NewRequest(self.Method, url, nil)
 	if err != nil {
@@ -112,7 +112,7 @@ func (self *Task) downloadChunk(url string, startRange, endRange, index int64, f
 	return nil
 }
 
-func (self Task) downloadWholeResource(url string) ([]byte, error) {
+func (self Resource) downloadWholeResource(url string) ([]byte, error) {
 	request, err := http.NewRequest(self.Method, url, nil)
 	if err != nil {
 		return []byte(""), err
@@ -133,15 +133,15 @@ func (self Task) downloadWholeResource(url string) ([]byte, error) {
 	return bytes, nil
 }
 
-func (self Task) chunkFolderPath(fileName string) string {
+func (self Resource) chunkFolderPath(fileName string) string {
 	return filepath.Join(self.DownloadFolder, fileName+".download")
 }
 
-func (self Task) chunkFilePath(fileName string) string {
+func (self Resource) chunkFilePath(fileName string) string {
 	return filepath.Join(self.chunkFolderPath(fileName), fileName)
 }
 
-func (self Task) storeResource(fileName string, useChunksDownload bool) error {
+func (self Resource) storeResource(fileName string, useChunksDownload bool) error {
 	if self.DownloadFolder != "" {
 		if err := os.MkdirAll(self.DownloadFolder, os.ModePerm); err != nil {
 			return err
@@ -177,7 +177,7 @@ func (self Task) storeResource(fileName string, useChunksDownload bool) error {
 	return nil
 }
 
-func (self *Task) downloadChunks(url string, contentLength int64, fileName string) error {
+func (self *Resource) downloadChunks(url string, contentLength int64, fileName string) error {
 	workers, chunkSize := calculateWorkers(contentLength, self.ChunkSize, self.MaxWorkers)
 	restChunk := contentLength % chunkSize
 
@@ -246,7 +246,7 @@ func (self *Task) downloadChunks(url string, contentLength int64, fileName strin
 	return nil
 }
 
-func (self *Task) downloadSingle(url string) error {
+func (self *Resource) downloadSingle(url string) error {
 	self.dataResults = make([][]byte, 1)
 	bytes, err := self.downloadWholeResource(url)
 	if err != nil {
@@ -257,7 +257,7 @@ func (self *Task) downloadSingle(url string) error {
 	return nil
 }
 
-func (self *Task) Download(url string, fileName string) error {
+func (self *Resource) Download(url string, fileName string) error {
 	startTime := time.Now()
 	var contentLength int64 = 0
 	var acceptRanges bool = false

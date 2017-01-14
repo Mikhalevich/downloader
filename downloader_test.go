@@ -18,17 +18,17 @@ var (
 )
 
 func runTask(url string, enableRange bool, t *testing.T) {
-	task := NewTask()
-	task.DownloadFolder = "test_files"
-	task.EnableRange = enableRange
+	resource := NewResource()
+	resource.DownloadFolder = "test_files"
+	resource.EnableRange = enableRange
 
-	err := task.Download(url, "")
+	err := resource.Download(url, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fmt.Println(task.Stats)
-	//fmt.Println(task.Stats.ChunkTimes)
+	fmt.Println(resource.Stats)
+	//fmt.Println(resource.Stats.ChunkTimes)
 }
 
 func download(urls []string, t *testing.T) {
