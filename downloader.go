@@ -62,7 +62,7 @@ func NewResource() *Resource {
 	}
 }
 
-func (self *Resource) downloadChunk(url string, startRange, endRange, index int64, fileName string, chunk chan Chunk) error {
+func (self *Resource) downloadChunk(url string, startRange, endRange, index int64, fileName string, chunk chan Chunk, stopFlag chan bool) error {
 	startTime := time.Now()
 	request, err := http.NewRequest(self.Method, url, nil)
 	if err != nil {
@@ -79,7 +79,12 @@ func (self *Resource) downloadChunk(url string, startRange, endRange, index int6
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode != http.StatusPartialContent {
+	var stop bool = response.StatusCode != http.StatusPartialContent
+	if index == 0 {
+		stopFlag <- stop
+	}
+
+	if stop {
 		// download whole resource
 		if index == 0 {
 			self.UseFilesystem = false
@@ -189,6 +194,7 @@ func (self *Resource) downloadChunks(url string, contentLength int64, fileName s
 	downloadError := make(chan error)
 	dataFinish := make(chan bool)
 	errorFinish := make(chan bool)
+	stopFlag := make(chan bool)
 	self.dataResults = make([][]byte, workers)
 	errorResults := make([]error, 0)
 
@@ -226,11 +232,17 @@ func (self *Resource) downloadChunks(url string, contentLength int64, fileName s
 				endRange += restChunk
 			}
 
-			err := self.downloadChunk(url, startRange, endRange, rangeIndex, fileName, dataChunk)
+			err := self.downloadChunk(url, startRange, endRange, rangeIndex, fileName, dataChunk, stopFlag)
 			if err != nil {
 				downloadError <- err
 			}
 		}(i)
+
+		if i == 0 {
+			if <-stopFlag {
+				break
+			}
+		}
 	}
 
 	wg.Wait()
