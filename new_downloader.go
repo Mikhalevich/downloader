@@ -5,7 +5,7 @@ type Downloader interface {
 }
 
 type Storer interface {
-	Store([]byte) error
+	Store(b []byte) error
 	Get() ([]byte, error)
 	GetFileName() string
 	SetFileName(fileName string)
