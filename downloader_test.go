@@ -17,6 +17,25 @@ var (
 	}
 )
 
+func TestTask(t *testing.T) {
+	task := NewTask()
+	task.S = NewFileStorer("test_task")
+
+	for _, url := range smallResources {
+		err := task.Download(url)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, url := range largeResources {
+		err := task.Download(url)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func runTask(url string, enableRange bool, t *testing.T) {
 	resource := NewResource()
 	resource.DownloadFolder = "test_files"
