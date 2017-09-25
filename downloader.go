@@ -12,11 +12,6 @@ import (
 	"time"
 )
 
-const (
-	DefaultChunkSize  = 100 * 1024
-	DefaultMaxWorkers = 20
-)
-
 type Chunk struct {
 	Index    int64
 	Bytes    []byte
