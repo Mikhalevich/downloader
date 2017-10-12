@@ -30,7 +30,15 @@ func (fs *FileStorer) Store(bytes []byte) error {
 		}
 	}
 
-	file, err := os.Create(filepath.Join(fs.FolderName, fs.FileName))
+	fullPath := filepath.Join(fs.FolderName, fs.FileName)
+	_, err := os.Stat(fullPath)
+	var file *os.File
+	if os.IsNotExist(err) {
+		file, err = os.Create(fullPath)
+	} else {
+		file, err = os.Open(fullPath)
+	}
+
 	if err != nil {
 		return err
 	}

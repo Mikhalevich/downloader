@@ -9,7 +9,7 @@ func NewMemoryStorer() *MemoryStorer {
 }
 
 func (ms *MemoryStorer) Store(b []byte) error {
-	ms.data = b
+	ms.data = append(ms.data, b...)
 	return nil
 }
 
