@@ -67,3 +67,8 @@ func (fs *FileStorer) GetFileName() string {
 func (fs *FileStorer) SetFileName(fileName string) {
 	fs.FileName = fileName
 }
+
+func (fs *FileStorer) Clone() Storer {
+	copyStorer := *fs
+	return &copyStorer
+}

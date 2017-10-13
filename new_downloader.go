@@ -9,4 +9,5 @@ type Storer interface {
 	Get() ([]byte, error)
 	GetFileName() string
 	SetFileName(fileName string)
+	Clone() Storer
 }

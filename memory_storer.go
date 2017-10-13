@@ -24,3 +24,8 @@ func (ms *MemoryStorer) GetFileName() string {
 func (ms *MemoryStorer) SetFileName(fileName string) {
 	// pass
 }
+
+func (ms *MemoryStorer) Clone() Storer {
+	copyStorer := *ms
+	return &copyStorer
+}

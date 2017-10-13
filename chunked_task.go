@@ -19,7 +19,6 @@ type ChunkedTask struct {
 	ChunkSize      int64
 	MaxDownloaders int64
 	CS             Storer
-	csList         []Storer
 }
 
 func NewChunkedTask() *ChunkedTask {
@@ -27,14 +26,6 @@ func NewChunkedTask() *ChunkedTask {
 		Task:           *NewTask(),
 		ChunkSize:      DefaultChunkSize,
 		MaxDownloaders: DefaultMaxWorkers,
-	}
-}
-
-func (ct *ChunkedTask) makeStorages(workers int64) {
-	ct.csList = make([]Storer, workers)
-	var i int64
-	for i = 0; i < workers; i++ {
-		ct.csList[i] = ct.CS
 	}
 }
 
@@ -63,8 +54,6 @@ func (ct *ChunkedTask) Download(url string) error {
 
 	workers, chunkSize := calculateWorkers(contentLength, ct.ChunkSize, ct.MaxDownloaders)
 	restChunk := contentLength % chunkSize
-
-	ct.makeStorages(workers)
 
 	job := jober.NewAll()
 
@@ -101,22 +90,26 @@ func (ct *ChunkedTask) Download(url string) error {
 				return nil, err
 			}
 
-			ct.csList[i].Store(bytes)
+			storer := ct.CS.Clone()
+			err = storer.Store(bytes)
+			if err != nil {
+				return nil, err
+			}
 
-			return nil, nil
+			return storer, nil
 		}
 		job.Add(f)
 	}
 
 	job.Wait()
 
-	_, errs := job.Get()
+	storers, errs := job.Get()
 	if len(errs) > 0 {
 		return errs[0]
 	}
 
-	for _, v := range ct.csList {
-		b, err := v.Get()
+	for _, v := range storers {
+		b, err := v.(Storer).Get()
 		if err != nil {
 			return err
 		}
