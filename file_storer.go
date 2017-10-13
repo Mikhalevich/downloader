@@ -36,7 +36,7 @@ func (fs *FileStorer) Store(bytes []byte) error {
 	if os.IsNotExist(err) {
 		file, err = os.Create(fullPath)
 	} else {
-		file, err = os.Open(fullPath)
+		file, err = os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	}
 
 	if err != nil {
@@ -45,7 +45,10 @@ func (fs *FileStorer) Store(bytes []byte) error {
 	defer file.Close()
 
 	if len(bytes) > 0 {
-		file.Write(bytes)
+		_, err = file.Write(bytes)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -29,6 +30,11 @@ func NewChunkedTask() *ChunkedTask {
 		MaxDownloaders: DefaultMaxWorkers,
 		CS:             NewMemoryStorer(),
 	}
+}
+
+type chunk struct {
+	index int64
+	s     Storer
 }
 
 func (ct *ChunkedTask) Download(url string) error {
@@ -100,25 +106,32 @@ func (ct *ChunkedTask) Download(url string) error {
 				return nil, err
 			}
 
-			return storer, nil
+			return chunk{rangeIndex, storer}, nil
 		}
 		job.Add(f)
 	}
 
 	job.Wait()
 
-	storers, errs := job.Get()
+	chunks, errs := job.Get()
 	if len(errs) > 0 {
 		return errs[0]
 	}
 
-	for _, v := range storers {
-		b, err := v.(Storer).Get()
+	sort.Slice(chunks, func(i, j int) bool {
+		return chunks[i].(chunk).index < chunks[j].(chunk).index
+	})
+
+	for _, v := range chunks {
+		b, err := v.(chunk).s.Get()
 		if err != nil {
 			return err
 		}
 
-		ct.Task.S.Store(b)
+		err = ct.Task.S.Store(b)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
