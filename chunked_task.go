@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -26,6 +27,7 @@ func NewChunkedTask() *ChunkedTask {
 		Task:           *NewTask(),
 		ChunkSize:      DefaultChunkSize,
 		MaxDownloaders: DefaultMaxWorkers,
+		CS:             NewMemoryStorer(),
 	}
 }
 
@@ -83,7 +85,9 @@ func (ct *ChunkedTask) Download(url string) error {
 			}
 			defer response.Body.Close()
 
-			//var stop bool = response.StatusCode != http.StatusPartialContent
+			if response.StatusCode != http.StatusPartialContent {
+				return nil, errors.New("Not a partial chunk")
+			}
 
 			bytes, err := ioutil.ReadAll(response.Body)
 			if err != nil {
