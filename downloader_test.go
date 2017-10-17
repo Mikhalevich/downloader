@@ -55,9 +55,29 @@ func TestTaskWithMemoryStorer(t *testing.T) {
 	}
 }
 
-func TestChunkedTaskWithFileStorer(t *testing.T) {
+func TestChunkedTaskWithMemoryStorer(t *testing.T) {
 	task := NewChunkedTask()
 	task.S = NewFileStorer("chunked_test_task")
+
+	for _, url := range smallResources {
+		err := task.Download(url)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, url := range largeResources {
+		err := task.Download(url)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestChunkedTaskWithFileStorer(t *testing.T) {
+	task := NewChunkedTask()
+	task.S = NewFileStorer("chunked_test_task_file")
+	task.CS = NewFileStorer("chunked_test_task_file/chunks")
 
 	for _, url := range smallResources {
 		err := task.Download(url)

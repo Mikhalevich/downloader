@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"sort"
@@ -101,6 +102,7 @@ func (ct *ChunkedTask) Download(url string) error {
 			}
 
 			storer := ct.CS.Clone()
+			storer.SetFileName(fmt.Sprintf("%s_%d", ct.Task.S.GetFileName(), rangeIndex))
 			err = storer.Store(bytes)
 			if err != nil {
 				return nil, err

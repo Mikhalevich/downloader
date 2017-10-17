@@ -10,12 +10,16 @@ import (
 type FileStorer struct {
 	FolderName string
 	FileName   string
+	Trim       bool
+	isOpened   bool
 }
 
 func NewFileStorer(folder string) *FileStorer {
 	return &FileStorer{
 		FolderName: folder,
 		FileName:   "",
+		Trim:       true,
+		isOpened:   false,
 	}
 }
 
@@ -31,9 +35,10 @@ func (fs *FileStorer) Store(bytes []byte) error {
 	}
 
 	fullPath := filepath.Join(fs.FolderName, fs.FileName)
-	_, err := os.Stat(fullPath)
+
 	var file *os.File
-	if os.IsNotExist(err) {
+	var err error
+	if fs.Trim && !fs.isOpened {
 		file, err = os.Create(fullPath)
 	} else {
 		file, err = os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -43,6 +48,7 @@ func (fs *FileStorer) Store(bytes []byte) error {
 		return err
 	}
 	defer file.Close()
+	fs.isOpened = true
 
 	if len(bytes) > 0 {
 		_, err = file.Write(bytes)
