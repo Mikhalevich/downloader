@@ -3,7 +3,7 @@ package downloader
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -36,6 +36,21 @@ func NewChunkedTask() *ChunkedTask {
 type chunk struct {
 	index int64
 	s     Storer
+}
+
+func storeBytes(r io.Reader, s Storer) error {
+	buf := make([]byte, 64*1024)
+	for {
+		n, err := r.Read(buf)
+		s.Store(buf[:n])
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (ct *ChunkedTask) Download(url string) error {
@@ -96,14 +111,9 @@ func (ct *ChunkedTask) Download(url string) error {
 				return nil, errors.New("Not a partial chunk")
 			}
 
-			bytes, err := ioutil.ReadAll(response.Body)
-			if err != nil {
-				return nil, err
-			}
-
 			storer := ct.CS.Clone()
 			storer.SetFileName(fmt.Sprintf("%s_%d", ct.Task.S.GetFileName(), rangeIndex))
-			err = storer.Store(bytes)
+			err = storeBytes(response.Body, storer)
 			if err != nil {
 				return nil, err
 			}
