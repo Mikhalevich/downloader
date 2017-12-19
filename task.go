@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"io/ioutil"
 	"net/http"
 	"strings"
 )
@@ -18,27 +17,6 @@ func NewTask() *Task {
 	}
 }
 
-func (t *Task) processDownload(url string) ([]byte, error) {
-	request, err := http.NewRequest(t.Method, url, nil)
-	if err != nil {
-		return []byte(""), err
-	}
-
-	client := &http.Client{}
-	response, err := client.Do(request)
-	if err != nil {
-		return []byte(""), err
-	}
-	defer response.Body.Close()
-
-	bytes, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return []byte(""), err
-	}
-
-	return bytes, nil
-}
-
 func (t *Task) Download(url string) error {
 	var err error
 
@@ -47,9 +25,19 @@ func (t *Task) Download(url string) error {
 		defer t.S.SetFileName("")
 	}
 
-	b, err := t.processDownload(url)
+	request, err := http.NewRequest(t.Method, url, nil)
+	if err != nil {
+		return err
+	}
 
-	err = t.S.Store(b)
+	client := &http.Client{}
+	response, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	err = storeBytes(response.Body, t.S)
 	if err != nil {
 		return err
 	}

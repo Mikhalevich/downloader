@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"io"
 	"net/http"
 )
 
@@ -30,4 +31,19 @@ func calculateWorkers(contentLength, chunkSize, maxWorkers int64) (int64, int64)
 	}
 
 	return workers, chunkSize
+}
+
+func storeBytes(r io.Reader, s Storer) error {
+	buf := make([]byte, 64*1024)
+	for {
+		n, err := r.Read(buf)
+		s.Store(buf[:n])
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

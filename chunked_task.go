@@ -3,7 +3,6 @@ package downloader
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -36,21 +35,6 @@ func NewChunkedTask() *ChunkedTask {
 type chunk struct {
 	index int64
 	s     Storer
-}
-
-func storeBytes(r io.Reader, s Storer) error {
-	buf := make([]byte, 64*1024)
-	for {
-		n, err := r.Read(buf)
-		s.Store(buf[:n])
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (ct *ChunkedTask) Download(url string) error {
