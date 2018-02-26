@@ -60,6 +60,8 @@ func (ct *ChunkedTask) Download(url string) error {
 		return ct.Task.Download(url)
 	}
 
+	ct.notify(contentLength)
+
 	workers, chunkSize := calculateWorkers(contentLength, ct.ChunkSize, ct.MaxDownloaders)
 	restChunk := contentLength % chunkSize
 
@@ -97,7 +99,7 @@ func (ct *ChunkedTask) Download(url string) error {
 
 			storer := ct.CS.Clone()
 			storer.SetFileName(fmt.Sprintf("%s_%d", ct.Task.S.GetFileName(), rangeIndex))
-			err = storeBytes(response.Body, storer)
+			err = ct.storeBytes(response.Body, storer)
 			if err != nil {
 				return nil, err
 			}
@@ -113,6 +115,8 @@ func (ct *ChunkedTask) Download(url string) error {
 	if len(errs) > 0 {
 		return errs[0]
 	}
+
+	ct.closeNotifier()
 
 	sort.Slice(chunks, func(i, j int) bool {
 		return chunks[i].(chunk).index < chunks[j].(chunk).index
