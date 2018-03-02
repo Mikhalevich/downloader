@@ -51,33 +51,41 @@ func (t *Task) storeBytes(r io.Reader, s Storer) error {
 	return nil
 }
 
-func (t *Task) Download(url string) error {
-	var err error
-
-	if t.S.GetFileName() == "" {
-		t.S.SetFileName(url[strings.LastIndex(url, "/")+1:])
-		defer t.S.SetFileName("")
+func (t *Task) makeFileName(url string) string {
+	if strings.HasSuffix(url, "/") {
+		url = url[:len(url)-1]
 	}
+
+	return url[strings.LastIndex(url, "/")+1:]
+}
+
+func (t *Task) Download(url string) (string, error) {
+	var err error
 
 	request, err := http.NewRequest(t.Method, url, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer response.Body.Close()
+
+	if t.S.GetFileName() == "" {
+		t.S.SetFileName(t.makeFileName(response.Request.URL.String()))
+		defer t.S.SetFileName("")
+	}
 
 	t.notify(response.ContentLength)
 
 	err = t.storeBytes(response.Body, t.S)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	t.closeNotifier()
-	return nil
+	return t.S.GetFileName(), nil
 }

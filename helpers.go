@@ -4,10 +4,10 @@ import (
 	"net/http"
 )
 
-func resourceInfo(url string) (int64, bool, error) {
+func resourceInfo(url string) (int64, bool, string, error) {
 	response, err := http.Head(url)
 	if err != nil {
-		return 0, false, err
+		return 0, false, "", err
 	}
 	defer response.Body.Close()
 
@@ -19,7 +19,7 @@ func resourceInfo(url string) (int64, bool, error) {
 			}
 		}
 	}
-	return response.ContentLength, acceptRanges, nil
+	return response.ContentLength, acceptRanges, response.Request.URL.String(), nil
 }
 
 func calculateWorkers(contentLength, chunkSize, maxWorkers int64) (int64, int64) {

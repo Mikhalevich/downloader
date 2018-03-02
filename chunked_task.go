@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/Mikhalevich/jober"
 )
@@ -37,17 +36,12 @@ type chunk struct {
 	s     Storer
 }
 
-func (ct *ChunkedTask) Download(url string) error {
+func (ct *ChunkedTask) Download(url string) (string, error) {
 	var err error
 
-	if ct.Task.S.GetFileName() == "" {
-		ct.Task.S.SetFileName(url[strings.LastIndex(url, "/")+1:])
-		defer ct.Task.S.SetFileName("")
-	}
-
-	contentLength, acceptRanges, err := resourceInfo(url)
+	contentLength, acceptRanges, url, err := resourceInfo(url)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if ct.ChunkSize <= 0 {
@@ -58,6 +52,11 @@ func (ct *ChunkedTask) Download(url string) error {
 
 	if !useChunksDownload {
 		return ct.Task.Download(url)
+	}
+
+	if ct.Task.S.GetFileName() == "" {
+		ct.Task.S.SetFileName(ct.makeFileName(url))
+		defer ct.Task.S.SetFileName("")
 	}
 
 	ct.notify(contentLength)
@@ -113,7 +112,7 @@ func (ct *ChunkedTask) Download(url string) error {
 
 	chunks, errs := job.Get()
 	if len(errs) > 0 {
-		return errs[0]
+		return "", errs[0]
 	}
 
 	ct.closeNotifier()
@@ -125,14 +124,14 @@ func (ct *ChunkedTask) Download(url string) error {
 	for _, v := range chunks {
 		b, err := v.(chunk).s.Get()
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		err = ct.Task.S.Store(b)
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	return nil
+	return ct.S.GetFileName(), nil
 }
