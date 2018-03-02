@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -22,14 +21,14 @@ func TestTaskWithFileStorer(t *testing.T) {
 	task.S = NewFileStorer("test_task")
 
 	for _, url := range smallResources {
-		err := task.Download(url)
+		_, err := task.Download(url)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	for _, url := range largeResources {
-		err := task.Download(url)
+		_, err := task.Download(url)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -41,14 +40,14 @@ func TestTaskWithMemoryStorer(t *testing.T) {
 	task.S = NewMemoryStorer()
 
 	for _, url := range smallResources {
-		err := task.Download(url)
+		_, err := task.Download(url)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	for _, url := range largeResources {
-		err := task.Download(url)
+		_, err := task.Download(url)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,14 +59,14 @@ func TestChunkedTaskWithMemoryStorer(t *testing.T) {
 	task.S = NewFileStorer("chunked_test_task")
 
 	for _, url := range smallResources {
-		err := task.Download(url)
+		_, err := task.Download(url)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	for _, url := range largeResources {
-		err := task.Download(url)
+		_, err := task.Download(url)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -80,45 +79,16 @@ func TestChunkedTaskWithFileStorer(t *testing.T) {
 	task.CS = NewFileStorer("chunked_test_task_file/chunks")
 
 	for _, url := range smallResources {
-		err := task.Download(url)
+		_, err := task.Download(url)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	for _, url := range largeResources {
-		err := task.Download(url)
+		_, err := task.Download(url)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-}
-
-func runTask(url string, enableRange bool, t *testing.T) {
-	resource := NewResource()
-	resource.DownloadFolder = "test_files"
-	resource.EnableRange = enableRange
-
-	err := resource.Download(url, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fmt.Println(resource.Stats)
-	//fmt.Println(resource.Stats.ChunkTimes)
-}
-
-func download(urls []string, t *testing.T) {
-	for _, url := range urls {
-		runTask(url, true, t)
-		runTask(url, false, t)
-	}
-}
-
-func TestSmallFiles(t *testing.T) {
-	download(smallResources, t)
-}
-
-func TestLargeFiles(t *testing.T) {
-	download(largeResources, t)
 }
