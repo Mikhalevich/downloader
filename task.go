@@ -3,6 +3,7 @@ package downloader
 import (
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -59,18 +60,18 @@ func (t *Task) makeFileName(url string) string {
 	return url[strings.LastIndex(url, "/")+1:]
 }
 
-func (t *Task) Download(url string) (string, error) {
+func (t *Task) Download(url string) (*DownloadInfo, error) {
 	var err error
 
 	request, err := http.NewRequest(t.Method, url, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer response.Body.Close()
 
@@ -78,14 +79,16 @@ func (t *Task) Download(url string) (string, error) {
 		t.S.SetFileName(t.makeFileName(response.Request.URL.String()))
 		defer t.S.SetFileName("")
 	}
+	info := NewDownloadInfo(t.S.GetFileName())
+	info.Info["content_length"] = strconv.FormatInt(response.ContentLength, 10)
 
 	t.notify(response.ContentLength)
 
 	err = t.storeBytes(response.Body, t.S)
 	if err != nil {
-		return "", err
+		return info, err
 	}
 
 	t.closeNotifier()
-	return t.S.GetFileName(), nil
+	return info, nil
 }

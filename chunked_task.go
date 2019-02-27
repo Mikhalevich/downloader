@@ -36,12 +36,12 @@ type chunk struct {
 	s     Storer
 }
 
-func (ct *ChunkedTask) Download(url string) (string, error) {
+func (ct *ChunkedTask) Download(url string) (*DownloadInfo, error) {
 	var err error
 
 	contentLength, acceptRanges, url, err := resourceInfo(url)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if ct.ChunkSize <= 0 {
@@ -58,11 +58,16 @@ func (ct *ChunkedTask) Download(url string) (string, error) {
 		ct.Task.S.SetFileName(ct.makeFileName(url))
 		defer ct.Task.S.SetFileName("")
 	}
+	info := NewDownloadInfo(ct.Task.S.GetFileName())
 
 	ct.notify(contentLength)
 
 	workers, chunkSize := calculateWorkers(contentLength, ct.ChunkSize, ct.MaxDownloaders)
 	restChunk := contentLength % chunkSize
+
+	info.Info["workers"] = strconv.FormatInt(workers, 10)
+	info.Info["chunk_size"] = strconv.FormatInt(chunkSize, 10)
+	info.Info["content_length"] = strconv.FormatInt(contentLength, 10)
 
 	job := jober.NewAll()
 
@@ -112,7 +117,7 @@ func (ct *ChunkedTask) Download(url string) (string, error) {
 
 	chunks, errs := job.Get()
 	if len(errs) > 0 {
-		return "", errs[0]
+		return info, errs[0]
 	}
 
 	ct.closeNotifier()
@@ -124,14 +129,14 @@ func (ct *ChunkedTask) Download(url string) (string, error) {
 	for _, v := range chunks {
 		b, err := v.(chunk).s.Get()
 		if err != nil {
-			return "", err
+			return info, err
 		}
 
 		err = ct.Task.S.Store(b)
 		if err != nil {
-			return "", err
+			return info, err
 		}
 	}
 
-	return ct.S.GetFileName(), nil
+	return info, nil
 }
