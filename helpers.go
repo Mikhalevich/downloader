@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"errors"
 	"net/http"
 	"regexp"
 	"strings"
@@ -22,23 +21,23 @@ func resourceInfo(url string) (int64, bool, string, error) {
 	return response.ContentLength, acceptRanges, nameFromResponse(response), nil
 }
 
-func contentDispositionName(r *http.Response) (string, error) {
+func contentDispositionName(r *http.Response) string {
 	cd := r.Header.Get("Content-Disposition")
 	if cd == "" {
-		return "", errors.New("No content disposition header")
+		return ""
 	}
 
 	re, err := regexp.Compile(`filename\s*=\s*"(.+)"`)
 	if err != nil {
-		return "", err
+		return ""
 	}
 
 	results := re.FindStringSubmatch(cd)
 	if len(results) < 2 {
-		return "", errors.New("filename is not matched")
+		return ""
 	}
 
-	return results[1], nil
+	return results[1]
 }
 
 func lastPathPart(url string) string {
@@ -50,8 +49,7 @@ func lastPathPart(url string) string {
 }
 
 func nameFromResponse(r *http.Response) string {
-	name, err := contentDispositionName(r)
-	if err == nil {
+	if name := contentDispositionName(r); name != "" {
 		return name
 	}
 	return lastPathPart(r.Request.URL.EscapedPath())
