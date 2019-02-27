@@ -4,7 +4,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 )
 
 type Task struct {
@@ -52,14 +51,6 @@ func (t *Task) storeBytes(r io.Reader, s Storer) error {
 	return nil
 }
 
-func (t *Task) makeFileName(url string) string {
-	if strings.HasSuffix(url, "/") {
-		url = url[:len(url)-1]
-	}
-
-	return url[strings.LastIndex(url, "/")+1:]
-}
-
 func (t *Task) Download(url string) (*DownloadInfo, error) {
 	var err error
 
@@ -76,7 +67,7 @@ func (t *Task) Download(url string) (*DownloadInfo, error) {
 	defer response.Body.Close()
 
 	if t.S.GetFileName() == "" {
-		t.S.SetFileName(t.makeFileName(response.Request.URL.String()))
+		t.S.SetFileName(nameFromResponse(response))
 		defer t.S.SetFileName("")
 	}
 	info := NewDownloadInfo(t.S.GetFileName())

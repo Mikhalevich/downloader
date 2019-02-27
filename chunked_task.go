@@ -39,7 +39,7 @@ type chunk struct {
 func (ct *ChunkedTask) Download(url string) (*DownloadInfo, error) {
 	var err error
 
-	contentLength, acceptRanges, url, err := resourceInfo(url)
+	contentLength, acceptRanges, fileName, err := resourceInfo(url)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (ct *ChunkedTask) Download(url string) (*DownloadInfo, error) {
 	}
 
 	if ct.Task.S.GetFileName() == "" {
-		ct.Task.S.SetFileName(ct.makeFileName(url))
+		ct.Task.S.SetFileName(fileName)
 		defer ct.Task.S.SetFileName("")
 	}
 	info := NewDownloadInfo(ct.Task.S.GetFileName())
